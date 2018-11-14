@@ -252,8 +252,429 @@ Whenever the `venicegeo/dg-potrace-task` Docker image changes and the task needs
 
 ## AnswerFactory Recipes
 
+GBDX tasks alone are building blocks for processing workflows. We've already mentioned one such workflow that uses multiple GBDX tasks, the Sentinel-2 shoreline extraction. Even for WorldView and Landsat, there are steps we have not yet mentioned, from ordering and preprocessing imagery to posting results to S3. AnswerFactory, also part of the GBDX platform, allows us to define such workflows (called recipes) such that users can define an area of interest and launch a predefined workflow, in much the same way they would currently use Beachfront. This section documents three such workflows, one each for WorldView, Landsat, and Sentinel-2.
+
 ### WorldView
+
+The full WorldView shoreline detection recipe is defined by the following JSON.
+
+```json
+{
+    "id": "dgis-create-worldview-shoreline-vectors-beta2",
+    "version": "0.1.0",
+    "name": "Create WorldView Shoreline Vectors beta2",
+    "owner": validation_response.json()['username'],
+    "accountId": [
+        validation_response.json()['account_id']
+    ],
+    "description": "Create shoreline vectors using WorldView imagery.",
+    "recipeType": "workflow",
+    "inputType": "acquisition",
+    "outputType": "vector-service",
+    "properties": {
+        "image_bands": "Pan_MS1_MS2",
+        "crop_to_project": True
+    },
+    "definition": {
+        "name": "Create WorldView Shoreline Vectors",
+        "tasks": [
+            {
+                "name": "AOP_Strip_Processor_e5f9fd90",
+                "taskType": "AOP_Strip_Processor:0.0.4",
+                "impersonation_allowed": True,
+                "containerDescriptors": [],
+                "inputs": [
+                    {
+                        "name": "data",
+                        "value": "{raster_path}"
+                    },
+                    {
+                        "name": "enable_pansharpen",
+                        "value": "false"
+                    },
+                    {
+                        "name": "ortho_epsg",
+                        "value": "UTM"
+                    },
+                    {
+                        "name": "enable_acomp",
+                        "value": "true"
+                    },
+                    {
+                        "name": "bands",
+                        "value": "MS"
+                    },
+                    {
+                        "name": "enable_dra",
+                        "value": "false"
+                    }
+                ],
+                "outputs": [
+                    {
+                        "name": "log"
+                    },
+                    {
+                        "name": "data"
+                    }
+                ]
+            },
+            {
+                "name": "DGIS_CreateShorelineVectors_beta",
+                "taskType": "DGIS_CreateShorelineVectors_beta:0.0.1",
+                "timeout":7200,
+                "impersonation_allowed":True,
+                "containerDescriptors":[],
+                "inputs":[
+                    {
+                        "name":"image",
+                        "source":"AOP_Strip_Processor_e5f9fd90:data"
+                    },
+                    {
+                        "name":"cat_id",
+                        "value":"{acquisition_id}"
+                    }
+                ],
+                "outputs":[
+                    {
+                        "name":"vector"
+                    },
+                    {
+                        "name":"raster"
+                    }
+                ]
+            },
+            {
+                "name":"ingest_DGIS_CreateShorelineVectors_beta",
+                "taskType":"IngestGeoJsonToVectorServices",
+                "impersonation_allowed":True,
+                "containerDescriptors":[],
+                "inputs":[
+                    {
+                        "name":"items",
+                        "source":"DGIS_CreateShorelineVectors_beta:vector"
+                    },
+                    {
+                        "name":"mapping",
+                        "value":"vector.crs=EPSG:4326\\nvector.ingestSource=Create WorldView Shoreline Vectors\\nvector.itemType=0"
+                    }
+                ],
+                "outputs":[
+                    {
+                        "name":"result"
+                    }
+                ]
+            },
+            {
+                "name":"s3_ingest_DGIS_CreateShorelineVectors_beta",
+                "taskType":"StageDataToS3",
+                "containerDescriptors":[],
+                "inputs":[
+                    {
+                        "name":"data",
+                        "source":"ingest_DGIS_CreateShorelineVectors_beta:result"
+                    },
+                    {
+                        "name":"destination",
+                        "value":"s3://{vector_ingest_bucket}/{recipe_id}/{run_id}/{task_name}"
+                    }
+                ],
+                "outputs":[]
+            }
+        ]
+    }
+}
+```
+
+Again, a full description of AnswerFactory is beyond the scope of this document, but a few details to highlight are that the workflow definition is comprised of the following basic steps:
+
+1. As a prerequisite, the source data must be `Pan_MS1_MS2` and will be cropped to the area of interest.
+2. **AOP Strip Processor** - Used to atmospherically compensate the input data.
+3. **DGIS Shoreline Detection Beta** - Our previously documented shoreline detection tasks, which takes as input atmospherically compensated multispectral bands and outputs shoreline vectors.
+4. **Ingest GeoJSON to Vector Services** - Makes vector results available to AnswerFactory.
+5. **Stage Data to S3** - Stages results to S3.
 
 ### Landsat
 
+The full Landsat shoreline detection recipe is defined by the following JSON.
+
+```json
+{
+    "id": "dgis-create-landsat-shoreline-vectors-beta",
+    "version": "0.1.0",
+    "name": "Create Landsat Shoreline Vectors beta",
+    "owner": validation_response.json()['username'],
+    "accountId": [
+        validation_response.json()['account_id']
+    ],
+    "description": "Create shoreline vectors using Landsat imagery.",
+    "recipeType": "workflow",
+    "inputType": "acquisition",
+    "outputType": "vector-service",
+    "properties": {
+        "acquisition_types": "LandsatAcquisition",
+        "crop_to_project": True
+    },
+    "definition": {
+        "name": "Create WorldView Shoreline Vectors",
+        "tasks": [
+            {
+                "name": "DGIS_CreateShorelineVectors_beta",
+                "taskType": "DGIS_CreateShorelineVectors_beta:0.0.1",
+                "timeout":7200,
+                "impersonation_allowed":True,
+                "containerDescriptors":[],
+                "inputs":[
+                    {
+                        "name":"image",
+                        "value":"{raster_path}"
+                    },
+                    {
+                        "name":"cat_id",
+                        "value":"{acquisition_id}"
+                    }
+                ],
+                "outputs":[
+                    {
+                        "name":"vector"
+                    },
+                    {
+                        "name":"raster"
+                    }
+                ]
+            },
+            {
+                "name":"ingest_DGIS_CreateShorelineVectors_beta",
+                "taskType":"IngestGeoJsonToVectorServices",
+                "impersonation_allowed":True,
+                "containerDescriptors":[],
+                "inputs":[
+                    {
+                        "name":"items",
+                        "source":"DGIS_CreateShorelineVectors_beta:vector"
+                    },
+                    {
+                        "name":"mapping",
+                        "value":"vector.crs=EPSG:4326\\nvector.ingestSource=Create WorldView Shoreline Vectors\\nvector.itemType=0"
+                    }
+                ],
+                "outputs":[
+                    {
+                        "name":"result"
+                    }
+                ]
+            },
+            {
+                "name":"s3_ingest_DGIS_CreateShorelineVectors_beta",
+                "taskType":"StageDataToS3",
+                "containerDescriptors":[],
+                "inputs":[
+                    {
+                        "name":"data",
+                        "source":"ingest_DGIS_CreateShorelineVectors_beta:result"
+                    },
+                    {
+                        "name":"destination",
+                        "value":"s3://{vector_ingest_bucket}/{recipe_id}/{run_id}/{task_name}"
+                    }
+                ],
+                "outputs":[]
+            }
+        ]
+    }
+}
+```
+
+The key differences between the Landsat workflow and the WorldView workflow are that the acquisition type is set specifically to `LandsatAcquisition` and there is no AOP Strip Processor task for Landsat.
+
+1. As a prerequisite, the acquisition type must be `LandsatAcquisition` and will be cropped to the area of interest.
+2. **DGIS Shoreline Detection Beta** - Our previously documented shoreline detection tasks, which takes as input atmospherically compensated multispectral bands and outputs shoreline vectors.
+3. **Ingest GeoJSON to Vector Services** - Makes vector results available to AnswerFactory.
+4. **Stage Data to S3** - Stages results to S3.
+
 ### Sentinel-2
+
+The full JSON payload to register the Sentinel-2 workflow is given below.
+
+```json
+{
+    "id": "dgis-create-sentinel2-shoreline-vectors-beta",
+    "version": "0.1.2",
+    "name": "Create Sentinel-2 Shoreline Vectors beta",
+    "owner": validation_response.json()['username'],
+    "accountId": [
+        validation_response.json()['account_id']
+    ],
+    "description": "Create shoreline vectors using Sentinel-2 imagery.",
+    "recipeType": "workflow",
+    "inputType": "acquisition",
+    "outputType": "vector-service",
+    "properties": {
+        "acquisition_types": "SENTINEL2",
+        "crop_to_project": True
+    },
+    "definition": {
+        "name": "Create Sentinel-2 Shoreline Vectors",
+        "tasks": [
+            {
+                "name": "convert",
+                "taskType": "gdal-cli-multiplex:0.0.1",
+                "timeout": 36000,
+                "inputs": [
+                    {
+                        "name": "data",
+                        "value": "{raster_path}"
+                    },
+                    {
+                        "name": "command",
+                        "value": "mkdir -p $outdir/data; gdal_translate -of GTiff -a_nodata 0 $indir/data/B03.jp2 $outdir/data/B03.tif; gdal_translate -of GTiff -a_nodata 0 $indir/data/B11.jp2 $outdir/data/B11.tif; gdalwarp -tr 10 10 $outdir/data/B11.tif $outdir/data/output.tif"
+                    }
+                ],
+                "outputs": [
+                    {
+                        "name": "data"
+                    }
+                ]
+            },
+            {
+                "name": "crop",
+                "taskType": "CropGeotiff",
+                "timeout": 36000,
+                "inputs": [
+                    {
+                        "name": "data",
+                        "source": "convert:data"
+                    },
+                    {
+                        "name": "no_data",
+                        "value": "0"
+                    }
+                ],
+                "outputs": [
+                    {
+                        "name": "data"
+                    }
+                ]
+            },
+            {
+                "name": "convert2",
+                "taskType": "gdal-cli-multiplex:0.0.1",
+                "timeout": 36000,
+                "inputs": [
+                    {
+                        "name": "data",
+                        "source": "crop:data"
+                    },
+                    {
+                        "name": "command",
+                        "value": "mkdir -p $outdir/data; gdal_translate -ot Float32 $indir/data/B03.tif $outdir/data/B03.tif; gdal_translate -ot Float32 $indir/data/output.tif $outdir/data/B11.tif"
+                    }
+                ],
+                "outputs": [
+                    {
+                        "name": "data"
+                    }
+                ]
+            },
+            {
+                "name": "mndwi_tif",
+                "taskType": "gdal-cli-multiplex:0.0.1",
+                "timeout": 36000,
+                "inputs": [
+                    {
+                        "name": "data",
+                        "source": "convert2:data"
+                    },
+                    {
+                        "name": "command",
+                        "value": "mkdir -p $outdir/data; gdal_calc.py -A $indir/data/B03.tif -B $indir/data/B11.tif --outfile=$outdir/data/mndwi.tif --calc=\"(A-B)/(A+B)\";"
+                    }
+                ],
+                "outputs": [
+                    {
+                        "name": "data"
+                    }
+                ]
+            },
+            {
+                "name": "otsu",
+                "taskType": "DGIS_OtsuThreshold_beta:0.0.1",
+                "timeout": 7200,
+                "impersonation_allowed": True,
+                "containerDescriptors": [],
+                "inputs": [
+                    {
+                        "name": "image",
+                        "source": "mndwi_tif:data"
+                    }
+                ],
+                "outputs": [
+                    {
+                        "name": "threshold"
+                    }
+                ]
+            },
+            {
+                "name": "potrace",
+                "taskType": "DGIS_Potrace_beta:0.0.1",
+                "timeout": 7200,
+                "impersonation_allowed": True,
+                "containerDescriptors": [],
+                "inputs": [
+                    {
+                        "name": "threshold",
+                        "source": "otsu:threshold"
+                    },
+                    {
+                        "name": "image",
+                        "source": "mndwi_tif:data"
+                    }
+                ],
+                "outputs": [
+                    {
+                        "name": "result"
+                    }
+                ]
+            },
+            {
+                "name":"ingest_DGIS_Potrace_beta",
+                "taskType":"IngestGeoJsonToVectorServices",
+                "impersonation_allowed":True,
+                "containerDescriptors":[],
+                "inputs":[
+                    {
+                        "name":"items",
+                        "source":"potrace:result"
+                    },
+                    {
+                        "name":"mapping",
+                        "value":"vector.crs=EPSG:4326\\nvector.ingestSource=:{recipe_name}\\nvector.itemType=0"
+                    }
+                ],
+                "outputs":[
+                    {
+                        "name":"result"
+                    }
+                ]
+            },
+            {
+                "name":"s3_ingest_DGIS_Potrace_beta",
+                "taskType":"StageDataToS3",
+                "containerDescriptors":[],
+                "inputs":[
+                    {
+                        "name":"data",
+                        "source":"ingest_DGIS_Potrace_beta:result"
+                    },
+                    {
+                        "name":"destination",
+                        "value":"s3://{vector_ingest_bucket}/{recipe_id}/{run_id}/{task_name}"
+                    }
+                ],
+                "outputs":[]
+            }
+        ]
+    }
+}
+```
+
+This workflow is significantly more complex than the earlier examples. First, a number of new tasks are inserted (using GDAL command line tools) to reformat the Sentinel-2 data and to compute the Modified NDWI raster. From there, we proceed to call the Otsu threshold detection and Potrace vectorization tasks that were explained earlier in the document. The final result is still ingest into Vector Services and staged to S3.
