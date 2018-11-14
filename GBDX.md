@@ -1,8 +1,14 @@
 # Beachfront Algorithms on DigitalGlobe's GBDX Platform
 
+## Overview
+
 Under the GEOINT Services contract, Radiant Solutions replicated a small subset of Beachfront functionality to operate on DigitalGlobe's GBDX Platform. The intent of this work was to demonstrate the feasibility of deploying the shoreline detection algorithm only to an alternate platform that was "close to the data" and able to efficiently scale to enable processing of large volumes of data.
 
 This document is intended to summarize that effort, documenting the tasks that were developed and deployed to GBDX, and the processing workflows (recipes) that were developed and deployed to AnswerFactory.
+
+### Background
+
+We refer the reader to GBDX documentation at GBDX University (https://gbdxdocs.digitalglobe.com/) for in depth documentation of GBDX. Of particular interest will be the "Tasks and Workflows Guide" at https://gbdxdocs.digitalglobe.com/docs/task-and-workflow-course. Though not required, most of our interaction with the GBDX API is marshaled by gbdxtools (https://gbdxtools.readthedocs.io/en/latest/), a Python package that simplifies API access, including authentication and authorization.
 
 ## GBDX Tasks
 
@@ -20,7 +26,19 @@ WorldView and Landsat imagery both use the same shoreline detection task within 
 
 #### Building the Shoreline Detection Image
 
-The shoreline detection source code can be found at https://github.com/venicegeo/shoreline-task. To build the docker image
+The shoreline detection source code can be found at https://github.com/venicegeo/shoreline-task. To build the Docker image, users must have Docker installed on their machine. The command to rebuild (and tag) the image from the command prompt is simply
+
+```bash
+docker build -t venicegeo/shoreline-task .
+```
+
+To push it to Docker Hub, enter the following at the command prompt.
+
+```bash
+docker push venicegeo/shoreline-task
+```
+
+For Docker images to be accessible to GBDX, we must add `tdgdeploy` as a collaborator through the Docker Hub interface.
 
 #### Registering the Shoreline Detection Task
 
@@ -86,9 +104,151 @@ Here is the JSON payload used to create the existing shoreline detection task.
 }
 ```
 
-### Otsu
+Whenever the `venicegeo/shoreline-task` Docker image changes and the task needs to be updated, the version number of the task should be incremented accordingly in the JSON shown above. Of course, if anything else about the task (inputs, outputs, command, etc.) need to be changed, this should be reflected as well.
+
+### Otsu Threshold
+
+In contrast to the current WorldView and Landsat shoreline detection workflows, which use a single GBDX task to generate the shoreline vector, Sentinel-2 computes the Modified NDWI raster in a separate GBDX task. This leaves the Otsu threshold and Potrace vectorization steps to be completed. We outline the Otsu task here.
+
+#### Building the Otsu Threshold Image
+
+The Otsu threshold source code can be found at https://github.com/venicegeo/dg-otsu-task. To build the Docker image, users must have Docker installed on their machine. The command to rebuild (and tag) the image from the command prompt is simply
+
+```bash
+docker build -t venicegeo/dg-otsu-task .
+```
+
+To push it to Docker Hub, enter the following at the command prompt.
+
+```bash
+docker push venicegeo/dg-otsu-task
+```
+
+For Docker images to be accessible to GBDX, we must add `tdgdeploy` as a collaborator through the Docker Hub interface.
+
+#### Registering the Otsu Threshold Task
+
+Here is the JSON payload used to create the existing Otsu threshold task.
+
+```json
+{
+    "name": "DGIS_OtsuThreshold_beta",
+    "version": "0.0.1",
+    "description": "Use Otsu's method to caluclate optimal threshold ignoring nodata values.",
+    "taskOwnerEmail": "bradley.chambers@radiantsolutions.com",
+    "properties": {
+        "isPublic": False,
+        "timeout": 7200
+    },
+    "inputPortDescriptors": [
+        {
+            "name": "image",
+            "type": "directory",
+            "description": "The data.",
+            "required": True
+        }
+    ],
+    "outputPortDescriptors": [
+        {
+            "name": "threshold",
+            "type": "string",
+            "description": "Otsu's threshold."
+        }
+    ],
+    "containerDescriptors": [
+        {
+            "type": "DOCKER",
+            "properties": {
+                "image": "venicegeo/dg-otsu-task"
+            },
+            "command": "python /otsu-task.py"
+        }
+    ]
+}
+```
+
+Whenever the `venicegeo/dg-otsu-task` Docker image changes and the task needs to be updated, the version number of the task should be incremented accordingly in the JSON shown above. Of course, if anything else about the task (inputs, outputs, command, etc.) need to be changed, this should be reflected as well.
 
 ### Potrace
+
+In contrast to the current WorldView and Landsat shoreline detection workflows, which use a single GBDX task to generate the shoreline vector, Sentinel-2 computes the Modified NDWI raster in a separate GBDX task. This leaves the Otsu threshold and Potrace vectorization steps to be completed. We outline the Potrace task here.
+
+#### Building the Potrace Image
+
+The Potrace source code can be found at https://github.com/venicegeo/dg-potrace-task. To build the Docker image, users must have Docker installed on their machine. The command to rebuild (and tag) the image from the command prompt is simply
+
+```bash
+docker build -t venicegeo/dg-potrace-task .
+```
+
+To push it to Docker Hub, enter the following at the command prompt.
+
+```bash
+docker push venicegeo/dg-potrace-task
+```
+
+For Docker images to be accessible to GBDX, we must add `tdgdeploy` as a collaborator through the Docker Hub interface.
+
+#### Registering the Potrace Task
+
+Here is the JSON payload used to create the existing Potrace task.
+
+```json
+{
+    "name": "DGIS_Potrace_beta",
+    "version": "0.0.1",
+    "description": "Trace raster image using potrace and return geolocated or lat-lon coordinates.",
+    "taskOwnerEmail": "bradley.chambers@radiantsolutions.com",
+    "properties": {
+        "isPublic": False,
+        "timeout": 7200
+    },
+    "inputPortDescriptors": [
+        {
+            "name": "image",
+            "type": "directory",
+            "description": "The data.",
+            "required": True
+        },
+        {
+            "name": "threshold",
+            "type": "string",
+            "description": "Threshold the input image.",
+            "required": True
+        },
+        {
+            "name": "minsize",
+            "type": "string",
+            "description": "Minimum coastline enclosed area/speckle suppression. (Default: 1000.0 pixels)",
+            "required": False
+        },
+        {
+            "name": "smooth",
+            "type": "string",
+            "description": "Corner smoothing from 0 (no smoothing) to 1.33 (no corners). (Default: 1.0)",
+            "required": False
+        }
+    ],
+    "outputPortDescriptors": [
+        {
+            "name": "result",
+            "type": "directory",
+            "description": "Potrace result."
+        }
+    ],
+    "containerDescriptors": [
+        {
+            "type": "DOCKER",
+            "properties": {
+                "image": "venicegeo/dg-potrace-task"
+            },
+            "command": "python /potrace-task.py"
+        }
+    ]
+}
+```
+
+Whenever the `venicegeo/dg-potrace-task` Docker image changes and the task needs to be updated, the version number of the task should be incremented accordingly in the JSON shown above. Of course, if anything else about the task (inputs, outputs, command, etc.) need to be changed, this should be reflected as well.
 
 ## AnswerFactory Recipes
 
@@ -97,21 +257,3 @@ Here is the JSON payload used to create the existing shoreline detection task.
 ### Landsat
 
 ### Sentinel-2
-
-## Source Code
-
-## iPython/Jupyter Notebooks
-
-* Register DGIS_Potrace_beta GBDX task
-	* Creates task "DGIS_Potrace_beta"
-	* Current version 0.0.1
-	* Creates vector by tracing binary input raster
-* Monday, 25 June 2018
-	* Tasks in DGIS account (with corresponding notebooks for how created)
-		* DGIS_CreateShorelineVectors_beta (was ShorelineDetection_beta)
-		* DGIS_OtsuThreshold_beta (was Otsu_beta)
-		* DGIS_Potrace_beta (was Potrace_beta)
-	* Recipes in DGIS AnswerFactory (with corresponding notebooks)
-		* dgis-create-worldview-shoreline-vectors-beta2
-		* dgis-create_landsat-shoreline-vectors-beta
-		* dgis-create-sentinel2-shoreline-vectors-beta
