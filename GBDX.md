@@ -2,19 +2,19 @@
 
 ## Overview
 
-Under the GEOINT Services contract, Radiant Solutions replicated a small subset of Beachfront functionality to operate on DigitalGlobe's GBDX Platform. The intent of this work was to demonstrate the feasibility of deploying the shoreline detection algorithm only to an alternate platform that was "close to the data" and able to efficiently scale to enable processing of large volumes of data.
+Under the GEOINT Services contract, Radiant Solutions replicated a small subset of Beachfront functionality to operate on DigitalGlobe's GBDX Platform. The intent of this work was to demonstrate the feasibility of deploying the shoreline detection algorithm only to an alternate platform that was "close to the data" and able to efficiently scale in order to enable processing of large volumes of data.
 
-This document is intended to summarize that effort, documenting the tasks that were developed and deployed to GBDX, and the processing workflows (recipes) that were developed and deployed to AnswerFactory.
+This document is intended to summarize that effort by documenting the tasks that were developed and deployed to GBDX, and processing workflows (recipes) that were developed and deployed to AnswerFactory.
 
 ### Background
 
-We refer the reader to GBDX documentation at GBDX University (https://gbdxdocs.digitalglobe.com/) for in depth documentation of GBDX. Of particular interest will be the "Tasks and Workflows Guide" at https://gbdxdocs.digitalglobe.com/docs/task-and-workflow-course. Though not required, most of our interaction with the GBDX API is marshaled by gbdxtools (https://gbdxtools.readthedocs.io/en/latest/), a Python package that simplifies API access, including authentication and authorization.
+We refer the reader to GBDX documentation at GBDX University (https://gbdxdocs.digitalglobe.com/) for in-depth documentation of GBDX. Of particular interest will be the "Tasks and Workflows Guide" at https://gbdxdocs.digitalglobe.com/docs/task-and-workflow-course. Though not required, most of our interaction with the GBDX API is marshaled by gbdxtools (https://gbdxtools.readthedocs.io/en/latest/), a Python package that simplifies API access, including authentication and authorization.
 
 ## GBDX Tasks
 
 Three tasks were developed to support shoreline detection in GBDX.
 
-1. **Shoreline Detection** - The original task developed to produce shorelines from WorldView and Landsat imagery, was a close port of the Python code used in Beachfront. Supporting libraries and the shoreline algorithm itself were compiled into a Docker image and posted to the venicegeo organization on DockerHub. From there, GBDX ingests the Docker image and starts containers as needed.
+1. **Shoreline Detection** - The original task developed to produce shorelines from WorldView and Landsat imagery was a close port of the Python code used in Beachfront. Supporting libraries and the shoreline algorithm itself were compiled into a Docker image and posted to the venicegeo organization on DockerHub. From there, GBDX ingests the Docker image and starts containers as needed.
 2. **Otsu Thresholding** - For Sentinel-2, we opted to veer slightly from the original implementation. We can use existing GBDX tasks to compute the Modified NDWI raster. The next step in the Beachfront processing workflow is to compute the optimal Otsu threshold to binarize the NDWI result. Because this may be considered a general purpose task that others could use, we split it out as a separate GBDX task. Again, the code is derived from the original Beachfront codebase and turned into a Docker image for use within GBDX.
 3. **Potrace Vectorization** - The final step in the Beachfront workflow is to vectorize the thresholded raster using potrace. Again, because this is not unique to shoreline detection, we isolated it as a separate GBDX tasks that can be reused by others.
 
@@ -32,7 +32,7 @@ The shoreline detection source code can be found at https://github.com/venicegeo
 docker build -t venicegeo/shoreline-task .
 ```
 
-To push it to Docker Hub, enter the following at the command prompt.
+To push it to Docker Hub, enter the following at the command prompt:
 
 ```bash
 docker push venicegeo/shoreline-task
@@ -42,7 +42,7 @@ For Docker images to be accessible to GBDX, we must add `tdgdeploy` as a collabo
 
 #### Registering the Shoreline Detection Task
 
-Here is the JSON payload used to create the existing shoreline detection task.
+Here is the JSON payload used to create the existing shoreline detection task:
 
 ```json
 {
@@ -104,7 +104,7 @@ Here is the JSON payload used to create the existing shoreline detection task.
 }
 ```
 
-Whenever the `venicegeo/shoreline-task` Docker image changes and the task needs to be updated, the version number of the task should be incremented accordingly in the JSON shown above. Of course, if anything else about the task (inputs, outputs, command, etc.) need to be changed, this should be reflected as well.
+Whenever the `venicegeo/shoreline-task` Docker image changes and the task needs to be updated, the version number of the task should be incremented accordingly in the JSON shown above. Of course, if anything else about the task (inputs, outputs, command, etc.) needs to be changed, this should be reflected as well.
 
 ### Otsu Threshold
 
@@ -118,7 +118,7 @@ The Otsu threshold source code can be found at https://github.com/venicegeo/dg-o
 docker build -t venicegeo/dg-otsu-task .
 ```
 
-To push it to Docker Hub, enter the following at the command prompt.
+To push it to Docker Hub, enter the following at the command prompt:
 
 ```bash
 docker push venicegeo/dg-otsu-task
@@ -128,7 +128,7 @@ For Docker images to be accessible to GBDX, we must add `tdgdeploy` as a collabo
 
 #### Registering the Otsu Threshold Task
 
-Here is the JSON payload used to create the existing Otsu threshold task.
+Here is the JSON payload used to create the existing Otsu threshold task:
 
 ```json
 {
@@ -167,7 +167,7 @@ Here is the JSON payload used to create the existing Otsu threshold task.
 }
 ```
 
-Whenever the `venicegeo/dg-otsu-task` Docker image changes and the task needs to be updated, the version number of the task should be incremented accordingly in the JSON shown above. Of course, if anything else about the task (inputs, outputs, command, etc.) need to be changed, this should be reflected as well.
+Whenever the `venicegeo/dg-otsu-task` Docker image changes and the task needs to be updated, the version number of the task should be incremented accordingly in the JSON shown above. Of course, if anything else about the task (inputs, outputs, command, etc.) needs to be changed, this should be reflected as well.
 
 ### Potrace
 
@@ -181,7 +181,7 @@ The Potrace source code can be found at https://github.com/venicegeo/dg-potrace-
 docker build -t venicegeo/dg-potrace-task .
 ```
 
-To push it to Docker Hub, enter the following at the command prompt.
+To push it to Docker Hub, enter the following at the command prompt:
 
 ```bash
 docker push venicegeo/dg-potrace-task
@@ -248,15 +248,15 @@ Here is the JSON payload used to create the existing Potrace task.
 }
 ```
 
-Whenever the `venicegeo/dg-potrace-task` Docker image changes and the task needs to be updated, the version number of the task should be incremented accordingly in the JSON shown above. Of course, if anything else about the task (inputs, outputs, command, etc.) need to be changed, this should be reflected as well.
+Whenever the `venicegeo/dg-potrace-task` Docker image changes and the task needs to be updated, the version number of the task should be incremented accordingly in the JSON shown above. Of course, if anything else about the task (inputs, outputs, command, etc.) needs to be changed, this should be reflected as well.
 
 ## AnswerFactory Recipes
 
-GBDX tasks alone are building blocks for processing workflows. We've already mentioned one such workflow that uses multiple GBDX tasks, the Sentinel-2 shoreline extraction. Even for WorldView and Landsat, there are steps we have not yet mentioned, from ordering and preprocessing imagery to posting results to S3. AnswerFactory, also part of the GBDX platform, allows us to define such workflows (called recipes) such that users can define an area of interest and launch a predefined workflow, in much the same way they would currently use Beachfront. This section documents three such workflows, one each for WorldView, Landsat, and Sentinel-2.
+GBDX tasks alone are building blocks for processing workflows. We've already mentioned one such workflow that uses multiple GBDX tasks, the Sentinel-2 shoreline extraction. Even for WorldView and Landsat, there are steps we have not yet mentioned - from ordering and preprocessing imagery to posting results to S3. AnswerFactory, also part of the GBDX platform, allows us to define such workflows (called recipes) so that users can define an area of interest and launch a predefined workflow in much the same way they would currently use Beachfront. This section documents three such workflows - one each for WorldView, Landsat, and Sentinel-2.
 
 ### WorldView
 
-The full WorldView shoreline detection recipe is defined by the following JSON.
+The full WorldView shoreline detection recipe is defined by the following JSON:
 
 ```json
 {
@@ -389,13 +389,13 @@ Again, a full description of AnswerFactory is beyond the scope of this document,
 
 1. As a prerequisite, the source data must be `Pan_MS1_MS2` and will be cropped to the area of interest.
 2. **AOP Strip Processor** - Used to atmospherically compensate the input data.
-3. **DGIS Shoreline Detection Beta** - Our previously documented shoreline detection tasks, which takes as input atmospherically compensated multispectral bands and outputs shoreline vectors.
+3. **DGIS Shoreline Detection Beta** - Our previously documented shoreline detection tasks that takes as input atmospherically compensated multispectral bands and outputs shoreline vectors.
 4. **Ingest GeoJSON to Vector Services** - Makes vector results available to AnswerFactory.
 5. **Stage Data to S3** - Stages results to S3.
 
 ### Landsat
 
-The full Landsat shoreline detection recipe is defined by the following JSON.
+The full Landsat shoreline detection recipe is defined by the following JSON:
 
 ```json
 {
@@ -487,13 +487,13 @@ The full Landsat shoreline detection recipe is defined by the following JSON.
 The key differences between the Landsat workflow and the WorldView workflow are that the acquisition type is set specifically to `LandsatAcquisition` and there is no AOP Strip Processor task for Landsat.
 
 1. As a prerequisite, the acquisition type must be `LandsatAcquisition` and will be cropped to the area of interest.
-2. **DGIS Shoreline Detection Beta** - Our previously documented shoreline detection tasks, which takes as input atmospherically compensated multispectral bands and outputs shoreline vectors.
+2. **DGIS Shoreline Detection Beta** - Our previously documented shoreline detection tasks that takes as input atmospherically compensated multispectral bands and outputs shoreline vectors.
 3. **Ingest GeoJSON to Vector Services** - Makes vector results available to AnswerFactory.
 4. **Stage Data to S3** - Stages results to S3.
 
 ### Sentinel-2
 
-The full JSON payload to register the Sentinel-2 workflow is given below.
+The full JSON payload to register the Sentinel-2 workflow is shown here:
 
 ```json
 {
@@ -677,4 +677,4 @@ The full JSON payload to register the Sentinel-2 workflow is given below.
 }
 ```
 
-This workflow is significantly more complex than the earlier examples. First, a number of new tasks are inserted (using GDAL command line tools) to reformat the Sentinel-2 data and to compute the Modified NDWI raster. From there, we proceed to call the Otsu threshold detection and Potrace vectorization tasks that were explained earlier in the document. The final result is still ingest into Vector Services and staged to S3.
+This workflow is significantly more complex than the earlier examples. First, a number of new tasks is inserted (using GDAL command line tools) to reformat the Sentinel-2 data and to compute the Modified NDWI raster. From there, we proceed to call the Otsu threshold detection and Potrace vectorization tasks that were explained earlier in the document. The final result is still ingest into Vector Services and staged to S3.
